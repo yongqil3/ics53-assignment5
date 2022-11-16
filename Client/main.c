@@ -16,31 +16,35 @@
 #define MAXBUF 8192  /* Max I/O buffer size */
 #define LISTENQ 1024 /* Second argument to listen() */
 
+int token_length = 0;
+
+char **split_date(char *line)
+{
+    int date_token_length = 0;
+    int capacity = 16;
+
+    char **tokens = malloc(capacity * sizeof(char *));
+
+    char *delimiters = "-";
+    char *token = strtok(line, delimiters);
+
+    while (token != NULL)
+    {
+        tokens[date_token_length] = token;
+        date_token_length++;
+        token = strtok(NULL, delimiters);
+    }
+    tokens[date_token_length] = NULL;
+    return tokens;
+}
+
 int check_date(char *date)
 {
-    if (strlen(date) != 10)
-        return 0;
-    char fdate[11];
-    strncpy(fdate, date, 10);
-    char *buf;
-    buf = strtok(fdate, "/");
-    if (!buf)
-    {
-        return 0;
-    }
-    int month = atoi(buf);
-    buf = strtok(NULL, "/");
-    if (!buf)
-    {
-        return 0;
-    }
-    int day = atoi(buf);
-    buf = strtok(NULL, "/");
-    if (!buf)
-    {
-        return 0;
-    }
-    int year = atoi(buf);
+    char **tokens = split_date(date);
+    int year = atoi(tokens[0]);
+    int month = atoi(tokens[1]);
+    int day = atoi(tokens[2]);
+  
     if (year < 1000 || year > 9999 || day < 1 || day > 31 || month < 1 || month > 12)
         return 0; // general case
     switch (month)
@@ -123,11 +127,30 @@ int open_clientfd(char *hostname, char *port)
 
 int clientfd = 0;
 
+char **split_line(char *line)
+{
+    token_length = 0;
+    int capacity = 16;
+
+    char **tokens = malloc(capacity * sizeof(char *));
+
+    char *delimiters = " \t\r\n";
+    char *token = strtok(line, delimiters);
+
+    while (token != NULL)
+    {
+        tokens[token_length] = token;
+        token_length++;
+        token = strtok(NULL, delimiters);
+    }
+    tokens[token_length] = NULL;
+    return tokens;
+}
+
 int main(int argc, const char *argv[])
 {
-    // insert code here...
+    char line[9999];
     char *host, *port, input[MAXLINE], buf2[MAXLINE], *buffer;
-    // rio_t rio;
     if (argc != 3)
     {
         fprintf(stderr, "usage: %s <host> <port>\n", argv[0]);
@@ -136,66 +159,152 @@ int main(int argc, const char *argv[])
     host = argv[1];
     port = argv[2];
     clientfd = open_clientfd(host, port);
-    char *spliter = " \n";
+
     while (1)
     { // while loop to get user input
         printf("> ");
-        memset(input, 0, 80);
-        fgets(input, (sizeof input / sizeof input[0]), stdin);
-        if (input[strlen(input) - 1] == '\n')
-            input[strlen(input) - 1] = 0;
-        strcpy(buf2, input);
-        if (strcmp(input, "quit") == 0)
+        memset(line, 0, sizeof(line));
+        fgets(line, 256, stdin);
+        strcpy(input, line);
+        char **tokens = split_line(line);
+        //copy line
+        if (!strcmp(tokens[0], "quit"))
         {
-            break;
-        }
-        buffer = strtok(buf2, spliter);
-        if (strcmp(buffer, "MaxPossible") == 0)
-        {
-            buffer = strtok(NULL, spliter);
-            if (strcmp(buffer, "MRNA") != 0 && strcmp(buffer, "PFE") != 0)
+            if (token_length != 1)
             {
                 printf("Invalid Syntax!\n");
-                continue;
             }
-            char original_length = strlen(input);
-            char buf3[MAXLINE];
-            buf3[0] = original_length; // set first byte to size
-            buf3[1] = '\0';
-            strcat(buf3, input);
-            // printf("%s\n", buf3);
-            write(clientfd, buf3, strlen(buf3));
-            memset(input, 0, sizeof(input));
-            read(clientfd, input, MAXLINE);
-            fputs(&input[1], stdout);
+            exit(0);
+        }
+        if (!strcmp(tokens[0], "PricesOnDate"))
+        {
+            if (token_length != 2)
+            {
+                printf("Invalid Syntax!\n");
+            }
+            else
+            {
+                if (check_date(tokens[1]))
+                {
+                    char original_length = strlen(input);
+                    char buf3[MAXLINE];
+                    buf3[0] = original_length; // set first byte to size
+                    buf3[1] = '\0';
+                    strcat(buf3, input);
+                    write(clientfd, buf3, strlen(buf3));
+                    memset(input, 0, sizeof(input));
+                    read(clientfd, input, MAXLINE);
+                    printf("%s\n", input);
+                    continue;
+                }
+            }
             continue;
         }
-        if (strcmp(buffer, "PricesOnDate") == 0)
+        if (!strcmp(tokens[0], "MaxPossible"))
         {
-            buffer = strtok(NULL, spliter);
-            if (strcmp(buffer, "MRNA") != 0 && strcmp(buffer, "PFE") != 0)
+            if (token_length != 5)
             {
                 printf("Invalid Syntax!\n");
-                continue;
             }
-            buffer = strtok(NULL, spliter);
-            if (!check_date(buffer))
+            else
             {
-                printf("Invalid Syntax!\n");
-                continue;
+                if (!strcmp(tokens[1], "profit") || !strcmp(tokens[1], "loss"))
+                {
+                    if (!strcmp(tokens[2], "MRNA") || !strcmp(tokens[2], "PFE"))
+                    {
+                        printf("token[3] = %s, token[4] = %s\n", tokens[3], tokens[4]);
+                        //copy tokens[3]  to new string array
+                        char date1[11];
+                        strcpy(date1, tokens[3]);
+                        char date2[11];
+                        strcpy(date2, tokens[4]);
+                        if (check_date(tokens[3]) && check_date(tokens[4]))
+                        {
+                            //spilt date1 and date2
+                            char *date1_year = strtok(date1, "-");
+                            char *date1_month = strtok(NULL, "-");
+                            char *date1_day = strtok(NULL, "-");
+                            char *date2_year = strtok(date2, "-");
+                            char *date2_month = strtok(NULL, "-");
+                            char *date2_day = strtok(NULL, "-");
+                            //convert to int
+                            int date1_year_int = atoi(date1_year);
+                            int date1_month_int = atoi(date1_month);
+                            int date1_day_int = atoi(date1_day);
+                            int date2_year_int = atoi(date2_year);
+                            int date2_month_int = atoi(date2_month);
+                            int date2_day_int = atoi(date2_day);
+                            printf("date1_year_int = %d, date1_month_int = %d, date1_day_int = %d\n", date1_year_int, date1_month_int, date1_day_int);
+                            //check previous date is before next date
+                           
+                           //check if date1 is before date2
+                           if(date1_year_int < date2_year_int)
+                           {
+                               char original_length = strlen(input);
+                               char buf3[MAXLINE];
+                               buf3[0] = original_length; // set first byte to size
+                               buf3[1] = '\0';
+                               strcat(buf3, input);
+                               write(clientfd, buf3, strlen(buf3));
+                               memset(input, 0, sizeof(input));
+                               read(clientfd, input, MAXLINE);
+                               printf("%s\n", input);
+                               continue;
+                           }
+                            else if(date1_year_int == date2_year_int)
+                            {
+                                if(date1_month_int < date2_month_int)
+                                {
+                                    char original_length = strlen(input);
+                                    char buf3[MAXLINE];
+                                    buf3[0] = original_length; // set first byte to size
+                                    buf3[1] = '\0';
+                                    strcat(buf3, input);
+                                    write(clientfd, buf3, strlen(buf3));
+                                    memset(input, 0, sizeof(input));
+                                    read(clientfd, input, MAXLINE);
+                                    printf("%s\n", input);
+                                    continue;
+                                }
+                                else if(date1_month_int == date2_month_int)
+                                {
+                                    if(date1_day_int < date2_day_int)
+                                    {
+                                        char original_length = strlen(input);
+                                        char buf3[MAXLINE];
+                                        buf3[0] = original_length; // set first byte to size
+                                        buf3[1] = '\0';
+                                        strcat(buf3, input);
+                                        write(clientfd, buf3, strlen(buf3));
+                                        memset(input, 0, sizeof(input));
+                                        read(clientfd, input, MAXLINE);
+                                        printf("%s\n", input);
+                                        continue;
+                                    }
+                                    else
+                                    {
+                                        printf("Invalid Syntax!\n");
+                                        continue;
+                                    }
+                                }
+                                else
+                                {
+                                    printf("Invalid Syntax!\n");
+                                    continue;
+                                }
+                            }
+                            else
+                            {
+                                printf("Invalid Syntax!\n");
+                                continue;
+                            }
+                            printf("Arrived here\n");
+                            // previous date must be before the latter date
+                            
+                        }
+                    }
+                }
             }
-
-            char original_length = strlen(input);
-            char buf3[MAXLINE];
-            buf3[0] = original_length; // set first byte to size
-            buf3[1] = '\0';
-            strcat(buf3, input);
-            // printf("%s\n", buf3);
-            write(clientfd, buf3, strlen(buf3));
-            memset(input, 0, sizeof(input));
-            read(clientfd, input, MAXLINE);
-            fputs(&input[1], stdout);
-
             continue;
         }
         else
@@ -203,8 +312,8 @@ int main(int argc, const char *argv[])
             printf("Invalid Syntax!\n");
             continue;
         }
+        free(tokens);
     }
-    close(clientfd); // line:netp:echoclient:close
-    exit(0);
+    close(clientfd);
     return 0;
 }

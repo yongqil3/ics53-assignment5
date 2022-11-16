@@ -15,10 +15,6 @@
 #define MAXLINE 8192 /* Max text line length */
 #define MAXBUF 8192  /* Max I/O buffer size */
 #define LISTENQ 1024 /* Second argument to listen() */
-#define APPL_STR "MRNA"
-#define TWTR_STR "PFE"
-#define PRICES_STR "Prices"
-#define MAXPROFIT_STR "MaxProfit"
 #define DATA_NUM 503
 #define DATE_LEN 11
 #define UNKNOWN_STR "Unknown"
@@ -27,111 +23,257 @@ struct STOCK
 {
     char date[DATA_NUM][DATE_LEN];
     float close[DATA_NUM];
+    float low[DATA_NUM];
+    float high[DATA_NUM];
 };
 
-struct STOCK twtr_stock;
-struct STOCK appl_stock;
+struct STOCK PFE_stock;
+struct STOCK MRNA_stock;
+
+// initialize the stock data
+
+char **split_data(char *line)
+{
+    int token_length = 0;
+    int capacity = 16;
+
+    char **tokens = malloc(capacity * sizeof(char *));
+
+    char *delimiters = ",";
+    char *token = strtok(line, delimiters);
+
+    while (token != NULL)
+    {
+        tokens[token_length] = token;
+        token_length++;
+        token = strtok(NULL, delimiters);
+    }
+    tokens[token_length] = NULL;
+    return tokens;
+}
+
+char **split_line(char *line)
+{
+    int token_length = 0;
+    int capacity = 16;
+
+    char **tokens = malloc(capacity * sizeof(char *));
+
+    char *delimiters = "\0";
+    char *token = strtok(line, delimiters);
+
+    while (token != NULL)
+    {
+        tokens[token_length] = token;
+        token_length++;
+        token = strtok(NULL, delimiters);
+    }
+    tokens[token_length] = NULL;
+    return tokens;
+}
 
 void read_file(char *file1, char *file2)
 {
     FILE *fd1 = fopen(file1, "r");
     FILE *fd2 = fopen(file2, "r");
-    char buf[1000];
+    char line[256];
 
-    // if(fd1 < 0){
-    //     fprintf(STDERR_FILENO, "Can not open %s", file1);
-    //     exit(1);
-    // }
-
-    // if(fd2 < 0){
-    //     fprintf(STDERR_FILENO, "Can not open %s", file2);
-    //     exit(1);
-    // }
-
-    fgets(buf, 100, fd1);
-    int i = 0;
-    while (fgets(buf, 100, fd1))
+    int count_1 = 0;
+    int count_2 = 0;
+    fgets(line, 100, fd1);
+    while (fgets(line, 100, fd1))
     {
-        char *buf2;
-        buf2 = strtok(buf, ",");
-        strcpy(appl_stock.date[i], buf2);
-        buf2 = strtok(NULL, ",");
-        buf2 = strtok(NULL, ",");
-        buf2 = strtok(NULL, ",");
-        buf2 = strtok(NULL, ",");
-        appl_stock.close[i] = atof(buf2);
-        i++;
+        char **tokens = split_data(line);
+        strcpy(PFE_stock.date[count_1], tokens[0]);
+        PFE_stock.close[count_1] = atof(tokens[4]);
+        count_1++;
     }
-    fgets(buf, 100, fd2);
-    i = 0;
-    while (fgets(buf, 100, fd2))
+    fgets(line, 100, fd2);
+    while (fgets(line, 100, fd2))
     {
-        char *buf2;
-        buf2 = strtok(buf, ",");
-        strcpy(twtr_stock.date[i], buf2);
-        buf2 = strtok(NULL, ",");
-        buf2 = strtok(NULL, ",");
-        buf2 = strtok(NULL, ",");
-        buf2 = strtok(NULL, ",");
-        twtr_stock.close[i] = atof(buf2);
-        i++;
+        char **tokens1 = split_data(line);
+        strcpy(MRNA_stock.date[count_2], tokens1[0]);
+        MRNA_stock.close[count_2] = atof(tokens1[4]);
+        count_2++;
     }
+}
+
+void revert_str(char *date)
+{
+    // convert 2020-01-01 to 01/01/2020 and eliminate the 0 in front of the month and day
+    char *year = strtok(date, "-");
+    char *month = strtok(NULL, "-");
+    char *day = strtok(NULL, "-");
+    if (month[0] == '0')
+    {
+        month[0] = month[1];
+        month[1] = '\0';
+    }
+    if (day[0] == '0')
+    {
+        day[0] = day[1];
+        day[1] = '\0';
+    }
+    char *new_date = malloc(10 * sizeof(char));
+    strcpy(new_date, month);
+    strcat(new_date, "/");
+    strcat(new_date, day);
+    strcat(new_date, "/");
+    strcat(new_date, year);
+    strcpy(date, new_date);
 }
 
 float getPrice(char *stock, char *date)
 {
-    int i;
-
-    if (strncmp(stock, APPL_STR, 4) == 0)
+    printf("stock: %s, date: %s\n", stock, date);
+    if (!strcmp(stock, "MRNA"))
     {
-        for (i = 0; i < DATA_NUM; i++)
+        printf("reach here\n");
+        for (int i = 0; i < DATA_NUM; i++)
         {
-            if (strncmp(appl_stock.date[i], date, 10) == 0)
-                return appl_stock.close[i];
+            // match the date
+            if (!strcmp(MRNA_stock.date[i], date))
+            {
+                printf("reach here!!!!!!\n");
+                printf("%d  %f\n", i, MRNA_stock.close[i]);
+                // copy new_date to date
+                printf("%s\n", date);
+                return MRNA_stock.close[i];
+            }
         }
     }
-    else if (strncmp(stock, TWTR_STR, 4) == 0)
+    else if (!strcmp(stock, "PFE"))
     {
-        for (i = 0; i < DATA_NUM; i++)
+        for (int i = 0; i < DATA_NUM; i++)
         {
-            if (strncmp(twtr_stock.date[i], date, 10) == 0)
-                return twtr_stock.close[i];
+            // match the date
+            if (!strcmp(PFE_stock.date[i], date))
+            {
+                return PFE_stock.close[i];
+            }
         }
     }
-    return -1.0;
+    return 0;
 }
 
-float maxProfit(char *stock)
+int start_index;
+int end_index;
+
+float max(float num1, float num2)
 {
-    float max_profit[DATA_NUM];
-    float min_close[DATA_NUM];
-    int i;
-    struct STOCK *s;
-    float temp_profit;
+    if (num1 > num2)
+    {
+        return num1;
+    }
+    return num2;
+}
 
-    if (strncmp(stock, APPL_STR, 4) == 0)
+float min(float num1, float num2)
+{
+    if (num1 < num2)
     {
-        s = &appl_stock;
+        return num1;
     }
-    else if (strncmp(stock, TWTR_STR, 4) == 0)
-    {
-        s = &twtr_stock;
-    }
-    else
-    {
-        return -1.0;
-    }
+    return num2;
+}
 
-    max_profit[0] = 0;
-    min_close[0] = s->close[0];
-    for (i = 1; i < DATA_NUM; i++)
+void find_index(char *stock, char *start_date, char *end_date)
+{
+    start_index = 0;
+    end_index = 0;
+    if (!strcmp(stock, "MRNA"))
     {
-        min_close[i] = min_close[i - 1] < s->close[i] ? min_close[i - 1] : s->close[i];
-        temp_profit = s->close[i] - min_close[i - 1];
-        max_profit[i] = temp_profit > max_profit[i - 1] ? temp_profit : max_profit[i - 1];
+        for (int i = 0; i < DATA_NUM; i++)
+        {
+            if (!strcmp(MRNA_stock.date[i], start_date))
+            {
+                start_index = i;
+            }
+            if (!strcmp(MRNA_stock.date[i], end_date))
+            {
+                end_index = i;
+            }
+        }
     }
+    else if (!strcmp(stock, "PFE"))
+    {
+        for (int i = 0; i < DATA_NUM; i++)
+        {
+            if (!strcmp(PFE_stock.date[i], start_date))
+            {
+                start_index = i;
+            }
+            if (!strcmp(PFE_stock.date[i], end_date))
+            {
+                end_index = i;
+            }
+        }
+    }
+}
+float MinProfit(float arr[], int left, int right)
+{
+    float result;
+    float max_ = 0;
+    float min_ = 999;
+    if (right <= left)
+    {
+        return 0;
+    }
+    int mid = (left + right) / 2;
+    for (unsigned int x = mid + 1; x <= right; x++)
+    {
+        if (arr[x] < min_)
+        {
+            min_ = arr[x];
+        }
+    }
+    for (unsigned int x = left; x <= mid; x++)
+    {
+        if (arr[x] > max_)
+        {
+            max_ = arr[x];
+        }
+    }
+    result = min_ - max_;
+    printf("result: %f    left:%d    right: %d\n", result, left, right);
+    float max_value, max_value2;
+    max_value2 = min(result, MinProfit(arr, left, mid));
+    max_value = min(max_value2, MinProfit(arr, mid + 1, right));
+    printf("min_value: %f\n  ", max_value);
+    return max_value;
+}
 
-    return max_profit[DATA_NUM - 1];
+float MaxProfit(float arr[], int left, int right)
+{
+    float result;
+    float max_ = 0;
+    float min_ = 999;
+    if (right <= left )
+    {
+        return 0;
+    }
+    int mid = (left + right) / 2;
+    for (unsigned int x = mid+1; x <= right ; x++)
+    {
+        if (arr[x] > max_)
+        {
+            max_ = arr[x];
+        }
+    }
+    for (unsigned int x = left; x <= mid ; x++)
+    {
+        if (arr[x] < min_)
+        {
+            min_ = arr[x];
+        }
+    }
+    result = max_ - min_;
+    printf("result: %f    left:%d    right: %d\n", result,left,right);
+    float max_value, max_value2;
+    max_value2 = max(result, MaxProfit(arr, left, mid));
+    max_value = max(max_value2, MaxProfit(arr, mid+1,right));
+    printf("max_value: %f\n  ", max_value);
+    return max_value;
 }
 
 int open_listenfd(char *port)
@@ -192,70 +334,119 @@ void sendB(int connfd)
     int size;
     char input[MAXLINE];
     float result;
-    char *stock;
     char *date;
     char *buffer;
     char *spliter = " \n";
     char output[MAXLINE];
+    float mrna_price;
+    float pfe_price;
 
     while ((n = read(connfd, input, MAXLINE)) != 0)
     {
-        printf("%s\n", &input[1]);
+        printf("%s", &input[1]);
 
         buffer = strtok(&input[1], spliter);
+        printf("%s", buffer);
 
-        if (strcmp(buffer, PRICES_STR) == 0)
+        if (strcmp(buffer, "PricesOnDate") == 0)
         {
-            stock = strtok(NULL, spliter);
+            printf("reach here\n");
             date = strtok(NULL, spliter);
-            result = getPrice(stock, date);
+            revert_str(date);
+            printf("%s\n", date);
+            mrna_price = getPrice("MRNA", date);
+            pfe_price = getPrice("PFE", date);
+            // PFE: 187.18 | MRNA: 44.98
+            sprintf(output, "PFE: %.2f | MRNA: %.2f", pfe_price, mrna_price);
+        }
+        else if (strcmp(buffer, "MaxPossible") == 0)
+        {
+            char *flag = strtok(NULL, spliter);
+            char *stock = strtok(NULL, spliter);
+            char *start_date = strtok(NULL, spliter);
+            char *end_date = strtok(NULL, spliter);
+            revert_str(start_date);
+            revert_str(end_date);
 
-            if (result < 0)
+            if (!strcmp(flag, "profit"))
             {
-                sprintf(output, "%s\n", UNKNOWN_STR);
+                if (!strcmp(stock, "MRNA"))
+                {
+                    find_index(stock, start_date, end_date);
+                    float arr[end_index - start_index + 1];
+                    for(int i = start_index; i <= end_index; i++)
+                    {
+                        arr[i-start_index] = MRNA_stock.close[i];
+                    }
+                    //print arr
+                    for(int i = 0; i < end_index - start_index + 1; i++)
+                    {
+                        printf("%f ", arr[i]);
+                    }
+                    // result = max_profit(stock, start_date, end_date);
+                    result = MaxProfit(arr, 0, end_index - start_index);
+                    sprintf(output, "%.2f", result);
+                }
+                else if (!strcmp(stock, "PFE"))
+                {
+                    find_index(stock, start_date, end_date);
+                    printf("start_index: %d    end_index: %d\n", start_index, end_index);
+                    float arr[end_index - start_index + 1];
+                    for(int i = start_index; i <= end_index; i++)
+                    {
+                        arr[i-start_index] = PFE_stock.close[i];
+                    }
+                    //copy the close price to an array
+                    // result = max_profit(stock, start_date, end_date);
+                    result = MaxProfit(arr, 0, end_index - start_index);
+                    sprintf(output, "%.2f", result);
+                }
             }
-            else
+            else if (!strcmp(flag, "loss"))
             {
-                sprintf(output, "%.2f\n", result);
+                if (!strcmp(stock, "MRNA"))
+                {
+                    find_index(stock, start_date, end_date);
+                    printf("start_index: %d    end_index: %d\n", start_index, end_index);
+                    float arr[end_index - start_index + 1];
+                    for (int i = start_index; i <= end_index; i++)
+                    {
+                        arr[i - start_index] = MRNA_stock.close[i];
+                    }
+                    // copy the close price to an array
+                    //  result = max_profit(stock, start_date, end_date);
+                    result = - MinProfit(arr, 0, end_index - start_index);
+                    sprintf(output, "%.2f", result);
+                }
+                else if (!strcmp(stock, "PFE"))
+                {
+                    find_index(stock, start_date, end_date);
+                    printf("start_index: %d    end_index: %d\n", start_index, end_index);
+                    float arr[end_index - start_index + 1];
+                    for (int i = start_index; i <= end_index; i++)
+                    {
+                        arr[i - start_index] = PFE_stock.close[i];
+                    }
+                    // copy the close price to an array
+                    //  result = max_profit(stock, start_date, end_date);
+                    result =  - MinProfit(arr, 0, end_index - start_index);
+                    sprintf(output, "%.2f", result);
+                }
             }
+            sprintf(output, "%.2f", result);
         }
-        else if (strcmp(buffer, MAXPROFIT_STR) == 0)
-        {
-            stock = strtok(NULL, spliter);
-            stock[4] = '\0';
-            result = maxProfit(stock);
-            if (result < 0)
-            {
-                sprintf(output, "%s\n", UNKNOWN_STR);
-            }
-            else
-            {
-                sprintf(output, "Maximum Profit for %s: %.2f\n", stock, result);
-            }
-        }
-        size = strlen(output);
-        for (i = size; i > 0; i--)
-        {
-            output[i] = output[i - 1];
-        }
-        output[0] = size;
-
-        write(connfd, output, strlen(output));
-        for (i = 0; i < MAXLINE; i++)
-        {
-            input[i] = '\0';
-            output[i] = '\0';
-        }
+        char original_length = strlen(output);
+        char buf3[MAXLINE];
+        buf3[0] = original_length; // set first byte to size
+        buf3[1] = '\0';
+        strcat(buf3, output);
+        write(connfd, buf3, strlen(buf3));
+        memset(output, 0, sizeof(output));
     }
 }
 
 int main(int argc, const char *argv[])
 {
-    // insert code here...
-    // argv[0] == server
-    // argv[1] == APPL.csv
-    // argv[2] == TWTR.csv
-    // argv[3] == port number
     if (argc != 4)
     {
         fprintf(stderr, "usage: %s <filename1> <filename2> <port>\n", argv[0]);
@@ -271,6 +462,7 @@ int main(int argc, const char *argv[])
     /* Check command line args */
 
     listenfd = open_listenfd(argv[3]);
+
     while (1)
     {
         clientlen = sizeof(clientaddr);
