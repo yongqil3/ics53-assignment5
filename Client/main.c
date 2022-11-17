@@ -17,6 +17,7 @@
 #define LISTENQ 1024 /* Second argument to listen() */
 
 int token_length = 0;
+int clientfd = 0;
 
 char **split_date(char *line)
 {
@@ -46,47 +47,19 @@ int check_date(char *date)
     int day = atoi(tokens[2]);
   
     if (year < 1000 || year > 9999 || day < 1 || day > 31 || month < 1 || month > 12)
-        return 0; // general case
-    switch (month)
-    {
-    case 1:
-    case 3:
-    case 5:
-    case 7:
-    case 8:
-    case 10:
-    case 12:
-        if (day > 31)
-            return 0;
-        break;
-    case 2:
-        if (year % 4 != 0)
-        {
-            if (day > 28)
-                return 0;
-        }
-        else
-        {
-            if (day > 29)
-                return 0;
-        }
-        break;
-    case 4:
-    case 6:
-    case 9:
-    case 11:
-        if (day > 30)
-            return 0;
-        break;
-    default:
-        return 0;
-    }
+        return 0; 
+    if (month == 2 && day > 29)
+        return 0; // february
+    if ((month == 4 || month == 6 || month == 9 || month == 11) && day > 30)
+        return 0; // april, june, september, november
+    if (month == 2 && day == 29 && year % 4 != 0)
+        return 0; // february in a non-leap year
     return 1;
 }
 
 int open_clientfd(char *hostname, char *port)
 {
-    int clientfd, rc;
+    int clientfd;
     struct addrinfo hints, *listp, *p;
 
     /* Get a list of potential server addresses */
@@ -94,11 +67,7 @@ int open_clientfd(char *hostname, char *port)
     hints.ai_socktype = SOCK_STREAM; /* Open a connection */
     hints.ai_flags = AI_NUMERICSERV; /* ... using a numeric port arg. */
     hints.ai_flags |= AI_ADDRCONFIG; /* Recommended for connections */
-    if ((rc = getaddrinfo(hostname, port, &hints, &listp)) != 0)
-    {
-        fprintf(stderr, "getaddrinfo failed (%s:%s): %s\n", hostname, port, gai_strerror(rc));
-        return -2;
-    }
+    getaddrinfo(hostname, port, &hints, &listp);
 
     /* Walk the list for one that we can successfully connect to */
     for (p = listp; p; p = p->ai_next)
@@ -110,11 +79,7 @@ int open_clientfd(char *hostname, char *port)
         /* Connect to the server */
         if (connect(clientfd, p->ai_addr, p->ai_addrlen) != -1)
             break; /* Success */
-        if (close(clientfd) < 0)
-        { /* Connect failed, try another */ // line:netp:openclientfd:closefd
-            fprintf(stderr, "open_clientfd: close failed: %s\n", strerror(errno));
-            return -1;
-        }
+        close(clientfd); /* Connect failed, try another */
     }
 
     /* Clean up */
@@ -124,8 +89,6 @@ int open_clientfd(char *hostname, char *port)
     else /* The last connect succeeded */
         return clientfd;
 }
-
-int clientfd = 0;
 
 char **split_line(char *line)
 {
@@ -149,8 +112,8 @@ char **split_line(char *line)
 
 int main(int argc, const char *argv[])
 {
-    char line[9999];
-    char *host, *port, input[MAXLINE], buf2[MAXLINE], *buffer;
+    char line[MAXLINE];
+    char *host, *port, input[MAXLINE], *buffer;
     if (argc != 3)
     {
         fprintf(stderr, "usage: %s <host> <port>\n", argv[0]);
@@ -186,12 +149,13 @@ int main(int argc, const char *argv[])
             {
                 if (check_date(tokens[1]))
                 {
-                    char original_length = strlen(input);
-                    char buf3[MAXLINE];
-                    buf3[0] = original_length; // set first byte to size
-                    buf3[1] = '\0';
-                    strcat(buf3, input);
-                    write(clientfd, buf3, strlen(buf3));
+                    char length = strlen(input);
+                    char temp[MAXLINE];
+                    temp[0] = length; // set first byte to size
+                    temp[1] = '\0';
+                    strcat(temp, input);
+
+                    write(clientfd, temp, strlen(temp));
                     memset(input, 0, sizeof(input));
                     read(clientfd, input, MAXLINE);
                     printf("%s\n", input);
@@ -234,18 +198,17 @@ int main(int argc, const char *argv[])
                             int date2_year_int = atoi(date2_year);
                             int date2_month_int = atoi(date2_month);
                             int date2_day_int = atoi(date2_day);
-                            printf("date1_year_int = %d, date1_month_int = %d, date1_day_int = %d\n", date1_year_int, date1_month_int, date1_day_int);
                             //check previous date is before next date
                            
                            //check if date1 is before date2
                            if(date1_year_int < date2_year_int)
                            {
-                               char original_length = strlen(input);
-                               char buf3[MAXLINE];
-                               buf3[0] = original_length; // set first byte to size
-                               buf3[1] = '\0';
-                               strcat(buf3, input);
-                               write(clientfd, buf3, strlen(buf3));
+                               char length = strlen(input);
+                               char temp[MAXLINE];
+                               temp[0] = length; // set first byte to size
+                               temp[1] = '\0';
+                               strcat(temp, input);
+                               write(clientfd, temp, strlen(temp));
                                memset(input, 0, sizeof(input));
                                read(clientfd, input, MAXLINE);
                                printf("%s\n", input);
@@ -255,12 +218,12 @@ int main(int argc, const char *argv[])
                             {
                                 if(date1_month_int < date2_month_int)
                                 {
-                                    char original_length = strlen(input);
-                                    char buf3[MAXLINE];
-                                    buf3[0] = original_length; // set first byte to size
-                                    buf3[1] = '\0';
-                                    strcat(buf3, input);
-                                    write(clientfd, buf3, strlen(buf3));
+                                    char length = strlen(input);
+                                    char temp[MAXLINE];
+                                    temp[0] = length; // set first byte to size
+                                    temp[1] = '\0';
+                                    strcat(temp, input);
+                                    write(clientfd, temp, strlen(temp));
                                     memset(input, 0, sizeof(input));
                                     read(clientfd, input, MAXLINE);
                                     printf("%s\n", input);
@@ -270,12 +233,12 @@ int main(int argc, const char *argv[])
                                 {
                                     if(date1_day_int < date2_day_int)
                                     {
-                                        char original_length = strlen(input);
-                                        char buf3[MAXLINE];
-                                        buf3[0] = original_length; // set first byte to size
-                                        buf3[1] = '\0';
-                                        strcat(buf3, input);
-                                        write(clientfd, buf3, strlen(buf3));
+                                        char length = strlen(input);
+                                        char temp[MAXLINE];
+                                        temp[0] = length; // set first byte to size
+                                        temp[1] = '\0';
+                                        strcat(temp, input);
+                                        write(clientfd, temp, strlen(temp));
                                         memset(input, 0, sizeof(input));
                                         read(clientfd, input, MAXLINE);
                                         printf("%s\n", input);
@@ -298,8 +261,6 @@ int main(int argc, const char *argv[])
                                 printf("Invalid Syntax!\n");
                                 continue;
                             }
-                            printf("Arrived here\n");
-                            // previous date must be before the latter date
                             
                         }
                     }
