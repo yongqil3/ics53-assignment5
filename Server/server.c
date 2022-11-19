@@ -1,3 +1,4 @@
+//name: yongqi liang id:75181206
 #include <stdio.h>
 #include <sys/socket.h>
 #include <stdlib.h>
@@ -11,6 +12,7 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include<math.h>
 
 #define MAXLINE 8192 /* Max text line length */
 #define MAXBUF 8192  /* Max I/O buffer size */
@@ -227,7 +229,7 @@ float MinProfit(float arr[], int left, int right)
         }
     }
     result = min_ - max_;
-    float max_value, max_value2;
+    double max_value, max_value2;
     max_value2 = min(result, MinProfit(arr, left, mid));
     max_value = min(max_value2, MinProfit(arr, mid + 1, right));
     return max_value;

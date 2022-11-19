@@ -1,3 +1,4 @@
+// name: yongqi liang id:75181206
 #include <stdio.h>
 #include <sys/socket.h>
 #include <stdlib.h>
@@ -14,7 +15,6 @@
 
 #define MAXLINE 8192 /* Max text line length */
 #define MAXBUF 8192  /* Max I/O buffer size */
-#define LISTENQ 1024 /* Second argument to listen() */
 
 int token_length = 0;
 int clientfd = 0;
@@ -79,6 +79,7 @@ int open_clientfd(char *hostname, char *port)
         /* Connect to the server */
         if (connect(clientfd, p->ai_addr, p->ai_addrlen) != -1)
             break; /* Success */
+
         close(clientfd); /* Connect failed, try another */
     }
 
